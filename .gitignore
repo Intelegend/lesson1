@@ -4,6 +4,8 @@
 # Исключаем папку /bitrix кроме некоторых подпапок
 !/bitrix
 /bitrix/*
+/bitrix/
+/local/vendor/
 
 # оставляем печатные формы интернет-магазина
 !/bitrix/admin/
