@@ -19,6 +19,7 @@ class Profile
      * @param order позволяет указать порядок сортировки
      * @param limit служит для получения определенного колличества записей
      * @property var $result служит для вывода конечной информации
+     *  @property var $result служит для вывода конечной информации
      */
     public function getList()
     {
