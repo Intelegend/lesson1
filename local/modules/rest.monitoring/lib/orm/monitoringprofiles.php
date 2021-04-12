@@ -55,10 +55,6 @@ class MonitoringProfilesTable extends Entity\DataManager
                 'values' => ['N', 'Y'],
                 'title' => Loc::getMessage('YLAB_CKECKUP_PROFILE_ACTIVITY_FIELD'),
             ]),
-            new Entity\BooleanField('STATUS_RESULT', [
-                'values' => ['N', 'Y'],
-                'title' => Loc::getMessage('YLAB_CKECKUP_PROFILE_STATUS_RESULT_FIELD'),
-            ]),
         ];
     }
 
