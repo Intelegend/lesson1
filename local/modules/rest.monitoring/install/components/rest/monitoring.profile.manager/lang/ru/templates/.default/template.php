@@ -1,2 +1,0 @@
-<?php
-$MESS['YLAB_MONITORING_PROFILE_MANAGER_APPLAY'] = 'Подтвердить';
