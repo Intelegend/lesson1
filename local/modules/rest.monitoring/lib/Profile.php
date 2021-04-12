@@ -1,118 +1,259 @@
 <?php
 
-
 namespace Rest\Monitoring;
 
+use Bitrix\Main\ArgumentException;
+use Bitrix\Main\ObjectPropertyException;
+use Bitrix\Main\SystemException;
+use Exception;
+use Rest\Monitoring\Orm\MonitoringProfilesTable;
+use Rest\Monitoring\Orm\MonitoringPropertiesTable;
+use Bitrix\Main\Localization\Loc;
+
 /**
- * Изменение таблицы профилей.
- *
- * @property integer $id
- * @property var $result
+ * Class Profile
+ * @package Rest\Monitoring
+ * Класс работы с профилями
  */
 class Profile
 {
-    /**
-     * Сортировка данных таблицы.
-     *
-     * @param select нужен для выборки определенных полей
-     * @param filter нужен для сортировки по заданому условию
-     * @param order позволяет указать порядок сортировки
-     * @param limit служит для получения определенного колличества записей
-     * @property var $result служит для вывода конечной информации
-     */
-    public function getList()
-    {
-        $result=y_monitoring_profiles::GetList(array(),
-            array('ID' =>'DESC',
-                'select'  => array("NAME","URL","METHOD","CHECK_INTERVAL"),
-                'filter'  =>  array('=ID' => 1),
-                'order' => array('NAME' => 'DESC', 'METHOD' => 'ASC'),
-                'limit'   => 10 ));
-        var_dump($result);
-    }
-    /**
-     * Получения индентификатора из таблицы.
-     *
-     * @param ID поле индетнтификатора
-     * @property integer $id переменная для записи индентификатора
-     */
-    public function getById($id)
-    {
-        $id = y_monitoring_profiles::getByPrimary(array('ID' => 1));
-        $arr=array("NAME","URL","METHOD","CHECK_INTERVAL","ACTIVITY", "STATUS_RESULT");
-    }
-    /**
-     * Изменение данных в таблице.
-     *
-     * @param NAME Название
-     * @param URL URL сервиса
-     * @param METHOD Метод запроса
-     * @param CHECK_INTERVAL Интервал проверки(мин.)
-     * @param ACTIVITY Активность
-     * @param STATUS_RESULT Результат проверки
-     * @property integer $id переменная для записи индентификатора
-     */
-    public function edit($id)
-    {
 
-        $result = y_monitoring_profiles::update($id, array(
-        "NAME" => 'varchar',
-        "URL" => 'varchar',
-        "METHOD" => 'varchar',
-        "CHECK_INTERVAL"=> 34,
-        "ACTIVITY" => 'varchar',
-        "STATUS_RESULT" => 'varchar',
-        ));
-        if (!$result->isSuccess())
-        {
-            $errors = $result->getErrorMessages();
-        }
-    }
     /**
-     * Изменение данных в таблице.
-     *
-     * @param NAME Название
-     * @param URL URL сервиса
-     * @param METHOD Метод запроса
-     * @param CHECK_INTERVAL Интервал проверки(мин.)
-     * @param ACTIVITY Активность
-     * @param STATUS_RESULT Результат проверки
-     * @property var $result служит для вывода конечной информации
+     * Получис список профилей
+     * @param $arParams
+     * @return object
      */
-    public function add()
+    public function getListData($arParams)
     {
-        $result = y_monitoring_profiles::add(array(
-            "NAME" => 'varchar',
-            "URL" => 'varchar',
-            "METHOD" => 'varchar',
-            "CHECK_INTERVAL"=> 34,
-            "ACTIVITY" => 'varchar',
-            "STATUS_RESULT" => 'varchar',
-        ));
-
-        if ($result->isSuccess())
-        {
-            $id = $result->getId();
-        }
-        if (!$result->isSuccess())
-        {
-            $errors = $result->getErrorMessages();
-        }
-    }
-    /**
-     * Изменение данных в таблице.
-     * @property integer $id переменная для записи индентификатора
-     * @property var $result служит для вывода конечной информации
-     */
-    public function delete($id)
-    {
-        $result = y_monitoring_profiles::delete($id);
-        if (!$result->isSuccess())
-        {
-            $errors = $result->getErrorMessages();
-        }
+        return MonitoringProfilesTable::getList($arParams);
     }
 
+    /**
+     * Добавляем профиль
+     * @param $arFields
+     * @return array|int
+     * @throws Exception
+     */
+    public function addProfile($arFields)
+    {
+        $arFieldsAddProfile = $this->checkProfilePostData($arFields);
+        $arFieldsAddProperty = [];
 
+        $oProfile = MonitoringProfilesTable::add($arFieldsAddProfile);
+
+        if ($oProfile->isSuccess()) {
+            $iProfileID = $oProfile->getId();
+
+            if (isset($arFieldsAddProperty)) {
+                foreach ($arFieldsAddProperty as $arProperty) {
+                    MonitoringPropertiesTable::add([
+                        'PROFILE_ID' => $iProfileID,
+                        'NAME' => $arProperty['NAME'],
+                        'VALUE' => $arProperty['VALUE']
+                    ]);
+                }
+            }
+
+            return $iProfileID;
+        }
+
+        return $oProfile->getErrorMessages();
+    }
+
+    /**
+     * Обновляем профиль
+     * @param $iProfileID
+     * @param $arFields
+     * @return array|bool
+     * @throws Exception
+     */
+    public function updateProfile($iProfileID, $arFields)
+    {
+        $arFieldsAdd = $this->checkProfilePostData($arFields);
+
+        $oProfile = MonitoringProfilesTable::update($iProfileID, $arFieldsAdd);
+
+        if ($oProfile->isSuccess()) {
+            $arOldHeaders = $this->getProfileHeaders($iProfileID);
+            if (isset($arOldHeaders)) {
+                foreach ($arOldHeaders as $arHeader) {
+                    MonitoringPropertiesTable::delete($arHeader['ID']);
+                }
+            }
+
+            $arFieldsAddProperty = [];
+            if (isset($arFieldsAddProperty)) {
+                foreach ($arFieldsAddProperty as $arProperty) {
+                    MonitoringPropertiesTable::add([
+                        'PROFILE_ID' => $iProfileID,
+                        'NAME' => $arProperty['NAME'],
+                        'VALUE' => $arProperty['VALUE']
+                    ]);
+                }
+            }
+
+            return true;
+        }
+
+        return $oProfile->getErrorMessages();
+    }
+
+    /**
+     * Удаляем профиль
+     * @param $iProfileID
+     * @return array|bool
+     * @throws Exception
+     */
+    public function deleteProfile($iProfileID)
+    {
+        $oProfile = MonitoringProfilesTable::delete($iProfileID);
+
+        if ($oProfile->isSuccess()) {
+            $arOldHeaders = $this->getProfileHeaders($iProfileID);
+            if (isset($arOldHeaders)) {
+                foreach ($arOldHeaders as $arHeader) {
+                    MonitoringPropertiesTable::delete($arHeader['ID']);
+                }
+            }
+
+            return true;
+        }
+
+        return $oProfile->getErrorMessages();
+    }
+
+    /**
+     * Получаем данные выбранного профиля
+     * @param $iProfileID
+     * @return bool
+     * @throws ArgumentException
+     * @throws ObjectPropertyException
+     * @throws SystemException
+     */
+    public function getProfile($iProfileID)
+    {
+        $arProfile = MonitoringProfilesTable::getById($iProfileID)->fetchAll();
+
+        if (isset($arProfile[0]['ID']) && is_numeric($arProfile[0]['ID'])) {
+            return $arProfile[0];
+        }
+
+        return false;
+    }
+
+    /**
+     * Получаем заголовки профиля
+     * @param $iProfileID
+     * @return array
+     * @throws ArgumentException
+     * @throws ObjectPropertyException
+     * @throws SystemException
+     */
+    public function getProfileHeaders($iProfileID)
+    {
+        $arResult = [];
+
+        $arHeaders = MonitoringPropertiesTable::getList([
+            'filter' => [
+                '=PROFILE_ID' => $iProfileID
+            ]
+        ])->fetchAll();
+
+        if (isset($arHeaders[0])) {
+            $arResult = $arHeaders;
+        }
+
+        return $arResult;
+    }
+
+    /**
+     * Поля по умолчанию
+     * @return array
+     */
+    public function getDefaultEditFields()
+    {
+        return [
+            'ID' => '',
+            'NAME' => '',
+            'URL' => '',
+            'METHOD' => 'POST',
+            'CHECK_INTERVAL' => '60',
+            'ACTIVITY' => 'Y',
+        ];
+    }
+
+    /**
+     * @param $arFields
+     * @return array
+     */
+    protected function checkProfilePostData($arFields)
+    {
+        $arResult = [];
+
+        if ($arFields) {
+            foreach ($this->getDefaultEditFields() as $sNameField => $sDataField) {
+                if ($sNameField == 'ID') {
+                    continue;
+                } elseif ($sNameField == 'ACTIVITY') {
+                    $arResult[$sNameField] = empty($arFields[$sNameField]) ? 'N' : 'Y';
+                } else {
+                    $arResult[$sNameField] = $arFields[$sNameField];
+                }
+            }
+        }
+
+        return $arResult;
+    }
+
+    /**
+     * @param $arFields
+     * @return array
+     */
+    protected function checkHeadersPostData($arFields)
+    {
+        $arFieldsAdd = [];
+
+        if ($arFields) {
+            foreach ($arFields['NAME'] as $iKey => $sField) {
+                if ($sField && $arFields['VALUE'][$iKey]) {
+                    $arFieldsAdd[] = [
+                        'NAME' => Helpers::clearString($sField),
+                        'VALUE' => Helpers::clearString($arFields['VALUE'][$iKey])
+                    ];
+                }
+            }
+        }
+
+        return $arFieldsAdd;
+    }
+
+    /**
+     * Вывод профиля
+     * @param $iProfileID
+     * @param $arView
+     * @return array|bool
+     * @throws Exception
+     */
+    public function viewProfile($iProfileID, $arView)
+    {
+        echo 'Проверка проверочка';
+        $oProfile = MonitoringProfilesTable::getList(
+            [
+                'select' => [
+                    $arView
+                ],
+                'filter' => [
+                    '=ID' => $iProfileID
+                ]
+            ])->fetchAll();
+
+        if ($oProfile->isSuccess()) {
+            echo(Успех);
+        }
+        else
+        {
+            $oProfile->getErrorMessages();
+        }
+        return $oProfile->getErrorMessages();
+    }
 }
-
